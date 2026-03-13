@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx create-next-app@latest neuro-dashboard --typescript --tailwind --eslint --app --src-dir --import-alias '@/*' --use-npm)",
+      "Bash(npx create-next-app@latest neuro-dashboard-temp --typescript --tailwind --eslint --app --src-dir --import-alias '@/*' --use-npm)",
+      "Read(//tmp/**)",
+      "Bash(npx create-next-app@latest neuro-dashboard-init --typescript --tailwind --eslint --app --src-dir --import-alias '@/*' --use-npm)",
+      "Bash(cp -r /tmp/neuro-dashboard-init/* /home/joseph/neuro-dashboard/)",
+      "Bash(cp /tmp/neuro-dashboard-init/.eslintrc.json /home/joseph/neuro-dashboard/)",
+      "Bash(cp /tmp/neuro-dashboard-init/.gitignore /home/joseph/neuro-dashboard/)",
+      "Bash(cp -r /tmp/neuro-dashboard-init/.next /home/joseph/neuro-dashboard/)",
+      "Bash(npm install:*)",
+      "Bash(npx shadcn@latest init -d --base-color neutral)",
+      "Bash(npx shadcn@latest init --help)",
+      "Bash(npx shadcn@latest init -d --css-variables)",
+      "Bash(npx shadcn@latest add card table tabs select dropdown-menu popover calendar -y)",
+      "Bash(npx prisma:*)",
+      "Bash(git init:*)",
+      "Bash(gh auth:*)",
+      "Bash(git config:*)",
+      "Bash(git add:*)"
+    ]
+  }
+}
