@@ -72,8 +72,8 @@ async function fetchVturbStatsByDay(playerId: string, startDate: string, endDate
     headers: vturbHeaders(),
     body: JSON.stringify({
       player_id: playerId,
-      start_date: startDate,
-      end_date: endDate,
+      start_date: `${startDate} 00:00:00`,
+      end_date: `${endDate} 23:59:59`,
       timezone: "America/Sao_Paulo",
     }),
   });
@@ -84,17 +84,22 @@ async function fetchVturbStatsByDay(playerId: string, startDate: string, endDate
   }
 
   const json = await res.json();
-  return json.data as Array<{
-    date: string;
-    total_views: number;
+  // Vturb may return array directly or wrapped in { data: [...] }
+  const data = Array.isArray(json) ? json : (json.data ?? []);
+  return data as Array<{
+    date_key: string;
+    total_viewed: number;
+    total_viewed_session_uniq: number;
+    total_viewed_device_uniq: number;
     total_started: number;
+    total_started_session_uniq: number;
+    total_started_device_uniq: number;
     total_finished: number;
-    total_clicks: number;
-    unique_sessions: number;
-    unique_devices: number;
-    engagement_rate: number;
-    play_rate: number;
-    conversions: number;
+    total_finished_session_uniq: number;
+    total_finished_device_uniq: number;
+    total_clicked: number;
+    engagement_rate?: number;
+    play_rate?: number;
   }>;
 }
 
@@ -183,15 +188,26 @@ async function main() {
       console.log(`   Recebidos: ${stats.length} dias`);
 
       for (const day of stats) {
-        const date = new Date(day.date);
+        const date = new Date(day.date_key);
+        if (isNaN(date.getTime())) {
+          console.warn(`   Skipping invalid date:`, day.date_key);
+          continue;
+        }
         date.setUTCHours(0, 0, 0, 0);
 
-        const playRate = day.total_views > 0
-          ? +((day.total_started / day.total_views) * 100).toFixed(2)
+        const totalViewed = day.total_viewed ?? 0;
+        const totalStarted = day.total_started ?? 0;
+        const totalFinished = day.total_finished ?? 0;
+        const uniqueSessions = day.total_viewed_session_uniq ?? 0;
+        const uniqueDevices = day.total_viewed_device_uniq ?? 0;
+
+        const playRate = totalViewed > 0
+          ? +((totalStarted / totalViewed) * 100).toFixed(2)
           : 0;
-        const completionRate = day.total_started > 0
-          ? +((day.total_finished / day.total_started) * 100).toFixed(2)
+        const completionRate = totalStarted > 0
+          ? +((totalFinished / totalStarted) * 100).toFixed(2)
           : 0;
+        const engagementRate = day.engagement_rate ?? 0;
 
         await prisma.vturbMetric.upsert({
           where: {
@@ -199,27 +215,27 @@ async function main() {
           },
           update: {
             playerName: player.name,
-            totalViewed: day.total_views,
-            totalStarted: day.total_started,
-            totalFinished: day.total_finished,
-            uniqueSessions: day.unique_sessions,
-            uniqueDevices: day.unique_devices,
+            totalViewed,
+            totalStarted,
+            totalFinished,
+            uniqueSessions,
+            uniqueDevices,
             playRate,
             completionRate,
-            engagementRate: day.engagement_rate,
+            engagementRate,
           },
           create: {
             date,
             playerId: player.id,
             playerName: player.name,
-            totalViewed: day.total_views,
-            totalStarted: day.total_started,
-            totalFinished: day.total_finished,
-            uniqueSessions: day.unique_sessions,
-            uniqueDevices: day.unique_devices,
+            totalViewed,
+            totalStarted,
+            totalFinished,
+            uniqueSessions,
+            uniqueDevices,
             playRate,
             completionRate,
-            engagementRate: day.engagement_rate,
+            engagementRate,
           },
         });
       }
