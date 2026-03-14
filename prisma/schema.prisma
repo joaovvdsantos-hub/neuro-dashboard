@@ -23,6 +23,7 @@ model MetaAdInsight {
   cpc          Float
   ctr          Float
   actions      Json?
+  actionValues Json?
   createdAt    DateTime @default(now())
 
   @@unique([date, campaignId, adsetId, adId])

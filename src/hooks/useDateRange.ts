@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { format, subDays, parse } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -14,6 +14,9 @@ export interface UseDateRangeReturn {
 export function useDateRange(): UseDateRangeReturn {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => setMounted(true), []);
 
   const dateRange = useMemo(() => {
     const fromParam = searchParams.get("from");
@@ -42,12 +45,13 @@ export function useDateRange(): UseDateRangeReturn {
   );
 
   const formattedRange = useMemo(() => {
+    if (!mounted) return "\u00A0"; // non-breaking space to avoid layout shift
     const fromStr = format(dateRange.from, "dd 'de' MMM, yyyy", {
       locale: ptBR,
     });
     const toStr = format(dateRange.to, "dd 'de' MMM, yyyy", { locale: ptBR });
     return `${fromStr} – ${toStr}`;
-  }, [dateRange]);
+  }, [dateRange, mounted]);
 
   return { dateRange, setDateRange, formattedRange };
 }

@@ -67,26 +67,29 @@ export function KpiCard({
           </span>
         </div>
 
-        {chartData && chartData.length > 0 && (
-          <AreaChart width={60} height={30} data={chartData}>
-            <defs>
-              <linearGradient id="sparkGradient" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#00FF9D" stopOpacity={0.3} />
-                <stop offset="100%" stopColor="#00FF9D" stopOpacity={0} />
-              </linearGradient>
-            </defs>
-            <YAxis hide domain={["dataMin", "dataMax"]} />
-            <Area
-              type="monotone"
-              dataKey="v"
-              stroke="#00FF9D"
-              fill="url(#sparkGradient)"
-              strokeWidth={1.5}
-              dot={false}
-              isAnimationActive={false}
-            />
-          </AreaChart>
-        )}
+        {chartData && chartData.length > 0 && (() => {
+          const gradientId = `spark-${title.replace(/\s+/g, "-").toLowerCase()}`;
+          return (
+            <AreaChart width={60} height={30} data={chartData}>
+              <defs>
+                <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#00FF9D" stopOpacity={0.3} />
+                  <stop offset="100%" stopColor="#00FF9D" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <YAxis hide domain={["dataMin", "dataMax"]} />
+              <Area
+                type="monotone"
+                dataKey="v"
+                stroke="#00FF9D"
+                fill={`url(#${gradientId})`}
+                strokeWidth={1.5}
+                dot={false}
+                isAnimationActive={false}
+              />
+            </AreaChart>
+          );
+        })()}
       </div>
     </div>
   );

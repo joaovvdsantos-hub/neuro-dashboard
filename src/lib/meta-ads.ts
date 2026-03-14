@@ -21,6 +21,7 @@ export interface MetaInsight {
   cpc: string;
   ctr: string;
   actions?: Array<{ action_type: string; value: string }>;
+  action_values?: Array<{ action_type: string; value: string }>;
 }
 
 interface InsightsResponse {
@@ -69,7 +70,7 @@ export async function getCampaignInsights(
 ): Promise<MetaInsight[]> {
   const accountId = getAccountId();
   const token = getAccessToken();
-  const fields = "impressions,clicks,spend,cpm,cpc,ctr,actions";
+  const fields = "impressions,clicks,spend,cpm,cpc,ctr,actions,action_values";
 
   const params = new URLSearchParams({
     fields,
@@ -88,7 +89,7 @@ export async function getAdInsights(dateRange: DateRange): Promise<MetaInsight[]
   const accountId = getAccountId();
   const token = getAccessToken();
   const fields =
-    "impressions,clicks,spend,cpm,cpc,ctr,actions,ad_id,ad_name,adset_id,adset_name,campaign_id,campaign_name";
+    "impressions,clicks,spend,cpm,cpc,ctr,actions,action_values,ad_id,ad_name,adset_id,adset_name,campaign_id,campaign_name";
 
   const params = new URLSearchParams({
     fields,
@@ -107,7 +108,7 @@ export async function getAdsetInsights(dateRange: DateRange): Promise<MetaInsigh
   const accountId = getAccountId();
   const token = getAccessToken();
   const fields =
-    "impressions,clicks,spend,cpm,cpc,ctr,actions,adset_id,adset_name,campaign_id,campaign_name";
+    "impressions,clicks,spend,cpm,cpc,ctr,actions,action_values,adset_id,adset_name,campaign_id,campaign_name";
 
   const params = new URLSearchParams({
     fields,

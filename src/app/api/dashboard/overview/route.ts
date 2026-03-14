@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { subDays, differenceInDays, format } from "date-fns";
+import { getUserEngagement, PLAYER_FRONT } from "@/lib/vturb";
 
 export const dynamic = "force-dynamic";
 
@@ -97,10 +98,10 @@ export async function GET(request: NextRequest) {
         _sum: { totalViewed: true, totalStarted: true, totalFinished: true },
       }),
       prisma.hotmartSale.count({
-        where: { status: "approved", productId: "neuro-academy", approvedDate: { gte: start, lte: end } },
+        where: { status: "approved", isUpsell: false, approvedDate: { gte: start, lte: end } },
       }),
       prisma.hotmartSale.count({
-        where: { status: "approved", productId: "protocolos-neuromodulacao", approvedDate: { gte: start, lte: end } },
+        where: { status: "approved", isUpsell: true, approvedDate: { gte: start, lte: end } },
       }),
     ]);
 
@@ -125,37 +126,23 @@ export async function GET(request: NextRequest) {
       const videoDuration = parseInt(process.env.VTURB_VIDEO_DURATION ?? "1800");
       const pitchTime = parseInt(process.env.VTURB_PITCH_TIME ?? "900");
 
-      const engagementRes = await fetch("https://analytics.vturb.net/times/user_engagement", {
-        method: "POST",
-        headers: {
-          "X-Api-Token": process.env.VTURB_API_KEY!,
-          "X-Api-Version": "v1",
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          player_id: process.env.VTURB_PLAYER_FRONT,
-          start_date: format(start, "yyyy-MM-dd"),
-          end_date: format(end, "yyyy-MM-dd"),
-          video_duration: videoDuration,
-          timezone: "America/Sao_Paulo",
-          pitch_time: pitchTime,
-        }),
-      });
+      const engResult = await getUserEngagement(
+        PLAYER_FRONT,
+        format(start, "yyyy-MM-dd"),
+        format(end, "yyyy-MM-dd"),
+        videoDuration,
+        pitchTime,
+      );
 
-      if (engagementRes.ok) {
-        const engData = await engagementRes.json();
-        const viewed = vturbFrontAgg._sum.totalViewed ?? 1;
-        const started = vturbFrontAgg._sum.totalStarted ?? 0;
-        const finished = vturbFrontAgg._sum.totalFinished ?? 0;
+      const viewed = vturbFrontAgg._sum.totalViewed ?? 1;
+      const started = vturbFrontAgg._sum.totalStarted ?? 0;
+      const finished = vturbFrontAgg._sum.totalFinished ?? 0;
 
-        retention = {
-          engagement: engData.data?.retention ?? [],
-          playRate: viewed > 0 ? +(started / viewed * 100).toFixed(1) : 0,
-          completionRate: started > 0 ? +(finished / started * 100).toFixed(1) : 0,
-        };
-      } else {
-        console.error("[Overview] Vturb engagement API error:", engagementRes.status);
-      }
+      retention = {
+        engagement: (engResult.data?.retention ?? []).map((r) => ({ time: r.second, retention: r.percentage })),
+        playRate: viewed > 0 ? +(started / viewed * 100).toFixed(1) : 0,
+        completionRate: started > 0 ? +(finished / started * 100).toFixed(1) : 0,
+      };
     } catch (err) {
       console.error("[Overview] Vturb engagement fetch error:", err);
     }

@@ -28,9 +28,9 @@ function extractPurchases(actions: unknown): number {
   return purchase ? Number(purchase.value ?? 0) : 0;
 }
 
-function extractPurchaseValue(actions: unknown): number {
-  if (!actions || !Array.isArray(actions)) return 0;
-  const purchase = actions.find(
+function extractPurchaseValue(actionValues: unknown): number {
+  if (!actionValues || !Array.isArray(actionValues)) return 0;
+  const purchase = actionValues.find(
     (a: Record<string, unknown>) =>
       a.action_type === "purchase" || a.action_type === "offsite_conversion.fb_pixel_purchase"
   );
@@ -73,8 +73,8 @@ export async function GET(request: NextRequest) {
 
       const existing = grouped.get(key);
       const purchases = extractPurchases(row.actions);
-      // For revenue, use purchase value from action_values if available, otherwise estimate
-      const revenue = extractPurchaseValue(row.actions);
+      // For revenue, use purchase value from action_values (monetary values)
+      const revenue = extractPurchaseValue(row.actionValues);
 
       if (existing) {
         existing.impressions += row.impressions;

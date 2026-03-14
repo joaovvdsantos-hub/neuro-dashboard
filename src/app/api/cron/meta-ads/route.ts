@@ -37,6 +37,10 @@ export async function GET(request: NextRequest) {
         ? (row.actions as unknown as Prisma.InputJsonValue)
         : Prisma.JsonNull;
 
+      const actionValuesValue = row.action_values
+        ? (row.action_values as unknown as Prisma.InputJsonValue)
+        : Prisma.JsonNull;
+
       await prisma.metaAdInsight.upsert({
         where: {
           date_campaignId_adsetId_adId: {
@@ -57,6 +61,7 @@ export async function GET(request: NextRequest) {
           cpc: parseFloat(row.cpc || "0"),
           ctr: parseFloat(row.ctr),
           actions: actionsValue,
+          actionValues: actionValuesValue,
         },
         create: {
           date,
@@ -73,6 +78,7 @@ export async function GET(request: NextRequest) {
           cpc: parseFloat(row.cpc || "0"),
           ctr: parseFloat(row.ctr),
           actions: actionsValue,
+          actionValues: actionValuesValue,
         },
       });
 
