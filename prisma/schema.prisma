@@ -1,8 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
   provider = "prisma-client"
   output   = "../src/generated/prisma"
@@ -10,4 +5,105 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+}
+
+model MetaAdInsight {
+  id           String   @id @default(uuid())
+  date         DateTime
+  campaignId   String
+  campaignName String
+  adsetId      String?
+  adsetName    String?
+  adId         String?
+  adName       String?
+  impressions  Int
+  clicks       Int
+  spend        Float
+  cpm          Float
+  cpc          Float
+  ctr          Float
+  actions      Json?
+  createdAt    DateTime @default(now())
+
+  @@unique([date, campaignId, adsetId, adId])
+  @@index([date])
+  @@index([campaignId])
+}
+
+model VturbMetric {
+  id             String   @id @default(uuid())
+  date           DateTime
+  playerId       String
+  playerName     String
+  totalViewed    Int
+  totalStarted   Int
+  totalFinished  Int
+  uniqueSessions Int
+  uniqueDevices  Int
+  playRate       Float?
+  completionRate Float?
+  engagementRate Float?
+  createdAt      DateTime @default(now())
+
+  @@unique([date, playerId])
+  @@index([date])
+  @@index([playerId])
+}
+
+model HotmartSale {
+  id            String    @id @default(uuid())
+  transactionId String    @unique
+  event         String
+  productName   String
+  productId     String
+  buyerName     String
+  buyerEmail    String
+  buyerState    String?
+  buyerCity     String?
+  buyerGender   String?
+  priceValue    Float
+  priceCurrency String
+  paymentType   String
+  status        String
+  isUpsell      Boolean   @default(false)
+  approvedDate  DateTime?
+  createdAt     DateTime  @default(now())
+
+  @@index([approvedDate])
+  @@index([productId])
+  @@index([event])
+}
+
+model DailySnapshot {
+  id                  String   @id @default(uuid())
+  date                DateTime @unique
+  // Meta Ads agregado
+  totalSpend          Float
+  totalImpressions    Int
+  totalClicks         Int
+  avgCpm              Float
+  avgCpc              Float
+  avgCtr              Float
+  // Vturb front VSL
+  vslViews            Int
+  vslStarts           Int
+  vslFinishes         Int
+  vslPlayRate         Float
+  vslCompletionRate   Float
+  // Vturb upsell VSL
+  upsellVslViews      Int?
+  upsellVslStarts     Int?
+  upsellVslFinishes   Int?
+  // Hotmart agregado
+  totalSales          Int
+  totalRevenue        Float
+  totalUpsellSales    Int
+  totalUpsellRevenue  Float
+  // Calculados
+  cpa                 Float
+  roas                Float
+  profit              Float
+  createdAt           DateTime @default(now())
+
+  @@index([date])
 }

@@ -1,14 +1,13 @@
-// Prisma client singleton
-// Will be configured once DATABASE_URL is set up with a Prisma adapter
+import { PrismaClient } from "@/generated/prisma/client";
+import { PrismaPg } from "@prisma/adapter-pg";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let prisma: any;
+const connectionString = process.env.DATABASE_URL!;
+const adapter = new PrismaPg({ connectionString });
 
-export function getPrisma() {
-  if (!prisma) {
-    throw new Error("Database not configured. Set DATABASE_URL and configure Prisma adapter.");
-  }
-  return prisma;
-}
+const globalForPrisma = globalThis as unknown as { prisma: PrismaClient };
 
-export { prisma };
+export const prisma = globalForPrisma.prisma || new PrismaClient({ adapter });
+
+if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
+
+export default prisma;

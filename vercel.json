@@ -1,0 +1,12 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/vturb",
+      "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/cron/meta-ads",
+      "schedule": "*/30 * * * *"
+    }
+  ]
+}

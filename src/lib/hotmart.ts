@@ -1,40 +1,62 @@
-export function verifyHotmartWebhook(hottok: string): boolean {
-  const expectedHottok = process.env.HOTMART_HOTTOK;
-  if (!expectedHottok) return false;
-  return hottok === expectedHottok;
+export interface HotmartEventData {
+  transactionId: string;
+  event: string;
+  productId: string;
+  productName: string;
+  buyerEmail: string;
+  buyerName: string;
+  buyerGender: string | null;
+  price: number;
+  currency: string;
+  createdAt: Date;
+  isUpsell: boolean;
 }
 
-export type HotmartEvent =
-  | "PURCHASE_APPROVED"
-  | "PURCHASE_COMPLETE"
-  | "PURCHASE_CANCELED"
-  | "PURCHASE_REFUNDED"
-  | "PURCHASE_CHARGEBACK"
-  | "PURCHASE_DELAYED";
-
 export interface HotmartWebhookPayload {
-  event: HotmartEvent;
+  event: string;
   data: {
-    product: {
-      id: number;
-      name: string;
-    };
+    product: { id: string; name: string };
     buyer: {
       email: string;
       name: string;
+      gender?: string;
     };
     purchase: {
       transaction: string;
-      order_date: string;
-      approved_date: string;
-      original_offer_price: {
-        value: number;
-        currency_code: string;
-      };
-      offer: {
-        code: string;
-      };
+      price: { value: number; currency_value: string };
+      order_date: number;
     };
   };
-  hottok: string;
+}
+
+export async function validateWebhook(request: Request): Promise<boolean> {
+  const hottok = request.headers.get("X-HOTMART-HOTTOK");
+  const expectedHottok = process.env.HOTMART_HOTTOK;
+  if (!expectedHottok || !hottok) return false;
+  return hottok === expectedHottok;
+}
+
+export function determineIsUpsell(productName: string): boolean {
+  const lower = productName.toLowerCase();
+  return lower.includes("protocolos") || lower.includes("upsell");
+}
+
+export function parseHotmartEvent(body: unknown): HotmartEventData {
+  const payload = body as HotmartWebhookPayload;
+  const { event, data } = payload;
+  const { product, buyer, purchase } = data;
+
+  return {
+    transactionId: purchase.transaction,
+    event,
+    productId: String(product.id),
+    productName: product.name,
+    buyerEmail: buyer.email,
+    buyerName: buyer.name,
+    buyerGender: buyer.gender || null,
+    price: purchase.price.value,
+    currency: purchase.price.currency_value,
+    createdAt: new Date(purchase.order_date),
+    isUpsell: determineIsUpsell(product.name),
+  };
 }
