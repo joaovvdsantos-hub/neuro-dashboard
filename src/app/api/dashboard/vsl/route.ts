@@ -2,8 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { subDays, format } from "date-fns";
 import {
-  getSessionStats,
-  getSessionStatsByDay,
   getUserEngagement,
   getLiveUsers,
   getTrafficOrigin,
@@ -12,6 +10,10 @@ import {
 } from "@/lib/vturb";
 
 export const dynamic = "force-dynamic";
+
+function sumField<T>(arr: T[], fn: (item: T) => number): number {
+  return arr.reduce((sum, item) => sum + fn(item), 0);
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -27,85 +29,101 @@ export async function GET(request: NextRequest) {
     const videoDuration = parseInt(process.env.VTURB_VIDEO_DURATION ?? "1800");
     const pitchTime = parseInt(process.env.VTURB_PITCH_TIME ?? "900");
 
-    // Parallel: session stats, daily stats, engagement, live users, traffic for both players
-    const [
-      frontStats,
-      upsellStats,
-      frontDaily,
-      upsellDaily,
-      frontEngagement,
-      upsellEngagement,
-      frontLive,
-      upsellLive,
-      frontTraffic,
-    ] = await Promise.allSettled([
-      getSessionStats(PLAYER_FRONT, startStr, endStr, videoDuration, pitchTime),
-      getSessionStats(PLAYER_UPSELL, startStr, endStr, videoDuration),
-      getSessionStatsByDay(PLAYER_FRONT, startStr, endStr),
-      getSessionStatsByDay(PLAYER_UPSELL, startStr, endStr),
-      getUserEngagement(PLAYER_FRONT, startStr, endStr, videoDuration, pitchTime),
-      getUserEngagement(PLAYER_UPSELL, startStr, endStr, videoDuration),
-      getLiveUsers(PLAYER_FRONT),
-      getLiveUsers(PLAYER_UPSELL),
-      getTrafficOrigin(PLAYER_FRONT, startStr, endStr, ["utm_source", "utm_medium", "utm_campaign"], videoDuration, pitchTime),
+    // --- Primary: DB data from VturbMetric ---
+    const [frontMetrics, upsellMetrics] = await Promise.all([
+      prisma.vturbMetric.findMany({
+        where: { date: { gte: start, lte: end }, playerId: PLAYER_FRONT },
+        orderBy: { date: "asc" },
+      }),
+      prisma.vturbMetric.findMany({
+        where: { date: { gte: start, lte: end }, playerId: PLAYER_UPSELL },
+        orderBy: { date: "asc" },
+      }),
     ]);
+
+    // KPIs from DB aggregation
+    const frontTotalViews = sumField(frontMetrics, (m) => m.totalViewed);
+    const frontTotalStarts = sumField(frontMetrics, (m) => m.totalStarted);
+    const frontTotalFinished = sumField(frontMetrics, (m) => m.totalFinished);
+    const frontTotalSessions = sumField(frontMetrics, (m) => m.uniqueSessions);
+
+    const frontKpis = {
+      totalViews: frontTotalViews,
+      totalStarted: frontTotalStarts,
+      totalFinished: frontTotalFinished,
+      uniqueSessions: frontTotalSessions,
+      playRate: frontTotalViews > 0 ? +((frontTotalStarts / frontTotalViews) * 100).toFixed(1) : 0,
+      completionRate: frontTotalStarts > 0 ? +((frontTotalFinished / frontTotalStarts) * 100).toFixed(1) : 0,
+      engagementRate: frontMetrics.length > 0
+        ? +(sumField(frontMetrics, (m) => m.engagementRate ?? 0) / frontMetrics.length).toFixed(1)
+        : 0,
+      avgWatchTime: 0,
+      conversions: 0,
+      liveUsers: 0,
+    };
+
+    const upsellTotalViews = sumField(upsellMetrics, (m) => m.totalViewed);
+    const upsellTotalStarts = sumField(upsellMetrics, (m) => m.totalStarted);
+    const upsellTotalFinished = sumField(upsellMetrics, (m) => m.totalFinished);
+    const upsellTotalSessions = sumField(upsellMetrics, (m) => m.uniqueSessions);
+
+    const upsellKpis = {
+      totalViews: upsellTotalViews,
+      totalStarted: upsellTotalStarts,
+      totalFinished: upsellTotalFinished,
+      uniqueSessions: upsellTotalSessions,
+      playRate: upsellTotalViews > 0 ? +((upsellTotalStarts / upsellTotalViews) * 100).toFixed(1) : 0,
+      completionRate: upsellTotalStarts > 0 ? +((upsellTotalFinished / upsellTotalStarts) * 100).toFixed(1) : 0,
+      engagementRate: upsellMetrics.length > 0
+        ? +(sumField(upsellMetrics, (m) => m.engagementRate ?? 0) / upsellMetrics.length).toFixed(1)
+        : 0,
+      avgWatchTime: 0,
+      conversions: 0,
+      liveUsers: 0,
+    };
+
+    // Daily evolution from DB
+    const dailyEvolution = frontMetrics.map((fm) => {
+      const dateStr = format(fm.date, "yyyy-MM-dd");
+      const um = upsellMetrics.find((u) => format(u.date, "yyyy-MM-dd") === dateStr);
+      return {
+        date: dateStr,
+        frontViews: fm.totalViewed,
+        frontStarts: fm.totalStarted,
+        frontFinished: fm.totalFinished,
+        frontPlayRate: fm.playRate ?? 0,
+        upsellViews: um?.totalViewed ?? 0,
+        upsellStarts: um?.totalStarted ?? 0,
+        upsellFinished: um?.totalFinished ?? 0,
+        upsellPlayRate: um?.playRate ?? 0,
+      };
+    });
+
+    // --- Secondary: Vturb API for retention, traffic, live users ---
+    const [frontEngagement, upsellEngagement, frontLive, upsellLive, frontTraffic] =
+      await Promise.allSettled([
+        getUserEngagement(PLAYER_FRONT, startStr, endStr, videoDuration, pitchTime),
+        getUserEngagement(PLAYER_UPSELL, startStr, endStr, videoDuration),
+        getLiveUsers(PLAYER_FRONT),
+        getLiveUsers(PLAYER_UPSELL),
+        getTrafficOrigin(PLAYER_FRONT, startStr, endStr, ["utm_source", "utm_medium", "utm_campaign"], videoDuration, pitchTime),
+      ]);
 
     const safe = <T>(r: PromiseSettledResult<T>): T | null =>
       r.status === "fulfilled" ? r.value : null;
 
-    const fs = safe(frontStats)?.data;
-    const us = safe(upsellStats)?.data;
+    // Update live users from API
+    const frontLiveData = safe(frontLive);
+    const upsellLiveData = safe(upsellLive);
+    if (frontLiveData?.data?.live_users) frontKpis.liveUsers = frontLiveData.data.live_users;
+    if (upsellLiveData?.data?.live_users) upsellKpis.liveUsers = upsellLiveData.data.live_users;
 
-    // KPIs for front VSL
-    const frontKpis = {
-      totalViews: fs?.total_views ?? 0,
-      totalStarted: fs?.total_started ?? 0,
-      totalFinished: fs?.total_finished ?? 0,
-      uniqueSessions: fs?.unique_sessions ?? 0,
-      playRate: fs?.play_rate ?? 0,
-      completionRate: fs?.completion_rate ?? 0,
-      engagementRate: fs?.engagement_rate ?? 0,
-      avgWatchTime: fs?.avg_watch_time ?? 0,
-      conversions: fs?.conversions ?? 0,
-      liveUsers: safe(frontLive)?.data?.live_users ?? 0,
-    };
-
-    // KPIs for upsell VSL
-    const upsellKpis = {
-      totalViews: us?.total_views ?? 0,
-      totalStarted: us?.total_started ?? 0,
-      totalFinished: us?.total_finished ?? 0,
-      uniqueSessions: us?.unique_sessions ?? 0,
-      playRate: us?.play_rate ?? 0,
-      completionRate: us?.completion_rate ?? 0,
-      engagementRate: us?.engagement_rate ?? 0,
-      avgWatchTime: us?.avg_watch_time ?? 0,
-      conversions: us?.conversions ?? 0,
-      liveUsers: safe(upsellLive)?.data?.live_users ?? 0,
-    };
-
-    // Daily evolution for both players
-    const frontDailyData = safe(frontDaily)?.data ?? [];
-    const upsellDailyData = safe(upsellDaily)?.data ?? [];
-
-    const dailyEvolution = frontDailyData.map((d) => {
-      const upsellDay = upsellDailyData.find((u) => u.date === d.date);
-      return {
-        date: d.date,
-        frontViews: d.total_views,
-        frontStarts: d.total_started,
-        frontFinished: d.total_finished,
-        frontPlayRate: d.play_rate,
-        upsellViews: upsellDay?.total_views ?? 0,
-        upsellStarts: upsellDay?.total_started ?? 0,
-        upsellFinished: upsellDay?.total_finished ?? 0,
-        upsellPlayRate: upsellDay?.play_rate ?? 0,
-      };
-    });
-
-    // Retention curves
+    // Retention curves from API
     const frontEng = safe(frontEngagement)?.data;
     const upsellEng = safe(upsellEngagement)?.data;
+
+    if (frontEng?.avg_watch_time) frontKpis.avgWatchTime = frontEng.avg_watch_time;
+    if (upsellEng?.avg_watch_time) upsellKpis.avgWatchTime = upsellEng.avg_watch_time;
 
     const frontRetention = {
       engagement: (frontEng?.retention ?? []).map((r) => ({
@@ -125,29 +143,17 @@ export async function GET(request: NextRequest) {
       medianWatchTime: upsellEng?.median_watch_time ?? 0,
     };
 
-    // Traffic origin
-    const trafficData = safe(frontTraffic)?.data ?? [];
-    const trafficOrigin = trafficData.map((t) => ({
-      origin: t.origin || "Direto",
-      views: t.views,
-      started: t.started,
-      finished: t.finished,
-      conversions: t.conversions,
-      playRate: t.play_rate,
-      completionRate: t.completion_rate,
-    }));
-
-    // DB metrics for comparison (previous period from snapshots)
-    const dbMetrics = await prisma.vturbMetric.findMany({
-      where: { date: { gte: start, lte: end }, playerId: PLAYER_FRONT },
-      orderBy: { date: "asc" },
-    });
-
-    const dbSparkline = dbMetrics.map((m) => ({
-      date: format(m.date, "yyyy-MM-dd"),
-      views: m.totalViewed,
-      starts: m.totalStarted,
-      playRate: m.playRate ?? 0,
+    // Traffic origin from API
+    const trafficRaw = safe(frontTraffic);
+    const trafficArr = Array.isArray(trafficRaw) ? trafficRaw : (trafficRaw?.data ?? []);
+    const trafficOrigin = (trafficArr as Array<Record<string, unknown>>).map((t) => ({
+      origin: (t.origin as string) || "Direto",
+      views: (t.views as number) ?? 0,
+      started: (t.started as number) ?? 0,
+      finished: (t.finished as number) ?? 0,
+      conversions: (t.conversions as number) ?? 0,
+      playRate: (t.play_rate as number) ?? 0,
+      completionRate: (t.completion_rate as number) ?? 0,
     }));
 
     return NextResponse.json({
@@ -157,7 +163,6 @@ export async function GET(request: NextRequest) {
       frontRetention,
       upsellRetention,
       trafficOrigin,
-      dbSparkline,
     });
   } catch (err) {
     console.error("[VSL API] Error:", err);

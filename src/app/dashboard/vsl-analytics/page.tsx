@@ -82,7 +82,6 @@ interface VslResponse {
   frontRetention: RetentionData;
   upsellRetention: RetentionData;
   trafficOrigin: TrafficRow[];
-  dbSparkline: Array<{ date: string; views: number; starts: number; playRate: number }>;
 }
 
 function formatTime(seconds: number): string {

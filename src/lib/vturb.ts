@@ -4,6 +4,14 @@ const DEFAULT_TIMEZONE = "America/Sao_Paulo";
 export const PLAYER_FRONT = process.env.VTURB_PLAYER_FRONT!;   // 698d3a927a04c8d380d2b7bf
 export const PLAYER_UPSELL = process.env.VTURB_PLAYER_UPSELL!; // 6983dcdc9ea5127266915c06
 
+/** Vturb API requires datetime with HH:MM:SS — ensure dates include time */
+function toStartDateTime(date: string): string {
+  return date.includes(" ") ? date : `${date} 00:00:00`;
+}
+function toEndDateTime(date: string): string {
+  return date.includes(" ") ? date : `${date} 23:59:59`;
+}
+
 function getHeaders(): Record<string, string> {
   return {
     "X-Api-Token": process.env.VTURB_API_KEY!,
@@ -144,8 +152,8 @@ export async function getTotalByPlayers(
     method: "POST",
     body: JSON.stringify({
       events,
-      start_date: startDate,
-      end_date: endDate,
+      start_date: toStartDateTime(startDate),
+      end_date: toEndDateTime(endDate),
       timezone,
     }),
   }, { events, startDate, endDate });
@@ -161,8 +169,8 @@ export async function getTotalByDay(
     method: "POST",
     body: JSON.stringify({
       events,
-      start_date: startDate,
-      end_date: endDate,
+      start_date: toStartDateTime(startDate),
+      end_date: toEndDateTime(endDate),
       timezone,
     }),
   }, { events, startDate, endDate });
@@ -177,8 +185,8 @@ export async function getSessionStats(
 ): Promise<SessionStatsResponse> {
   const body: Record<string, unknown> = {
     player_id: playerId,
-    start_date: startDate,
-    end_date: endDate,
+    start_date: toStartDateTime(startDate),
+    end_date: toEndDateTime(endDate),
     video_duration: videoDuration,
     timezone: DEFAULT_TIMEZONE,
   };
@@ -200,8 +208,8 @@ export async function getSessionStatsByDay(
     method: "POST",
     body: JSON.stringify({
       player_id: playerId,
-      start_date: startDate,
-      end_date: endDate,
+      start_date: toStartDateTime(startDate),
+      end_date: toEndDateTime(endDate),
       timezone,
     }),
   }, { playerId, startDate, endDate });
@@ -216,8 +224,8 @@ export async function getUserEngagement(
 ): Promise<UserEngagementResponse> {
   const body: Record<string, unknown> = {
     player_id: playerId,
-    start_date: startDate,
-    end_date: endDate,
+    start_date: toStartDateTime(startDate),
+    end_date: toEndDateTime(endDate),
     video_duration: videoDuration,
     timezone: DEFAULT_TIMEZONE,
   };
@@ -253,8 +261,8 @@ export async function getConversionsByDay(
     method: "POST",
     body: JSON.stringify({
       player_id: playerId,
-      start_date: startDate,
-      end_date: endDate,
+      start_date: toStartDateTime(startDate),
+      end_date: toEndDateTime(endDate),
       timezone,
     }),
   }, { playerId, startDate, endDate });
@@ -270,8 +278,8 @@ export async function getCustomMetrics(
     method: "POST",
     body: JSON.stringify({
       player_id: playerId,
-      start_date: startDate,
-      end_date: endDate,
+      start_date: toStartDateTime(startDate),
+      end_date: toEndDateTime(endDate),
       timezone,
     }),
   }, { playerId, startDate, endDate });
@@ -288,8 +296,8 @@ export async function getTrafficOrigin(
 ): Promise<TrafficOriginResponse> {
   const body: Record<string, unknown> = {
     player_id: playerId,
-    start_date: startDate,
-    end_date: endDate,
+    start_date: toStartDateTime(startDate),
+    end_date: toEndDateTime(endDate),
     timezone,
   };
   if (queryKeys) body.query_keys = queryKeys;
