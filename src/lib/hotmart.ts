@@ -5,26 +5,61 @@ export interface HotmartEventData {
   productName: string;
   buyerEmail: string;
   buyerName: string;
-  buyerGender: string | null;
+  buyerGender: null;
+  buyerState: string | null;
+  buyerCity: string | null;
+  paymentType: string;
   price: number;
   currency: string;
+  approvedDate: Date | null;
   createdAt: Date;
   isUpsell: boolean;
 }
 
 export interface HotmartWebhookPayload {
+  id: string;
+  creation_date: number;
   event: string;
+  version: string;
   data: {
-    product: { id: string; name: string };
+    product: {
+      id: number;
+      ucode: string;
+      name: string;
+      has_co_production?: boolean;
+    };
     buyer: {
       email: string;
       name: string;
-      gender?: string;
+      first_name?: string;
+      last_name?: string;
+      checkout_phone?: string;
+      document?: string;
+      document_type?: string;
+      address?: {
+        country_iso?: string;
+        country?: string;
+        zipcode?: string;
+        state?: string;
+        city?: string;
+        neighborhood?: string;
+        street?: string;
+        complement?: string;
+        number?: string;
+      };
     };
     purchase: {
       transaction: string;
+      approved_date?: number;
+      full_price?: { value: number; currency_value: string };
       price: { value: number; currency_value: string };
-      order_date: number;
+      offer?: { code: string };
+      order_date: string;
+      status: string;
+      payment?: {
+        installments_number?: number;
+        type?: string;
+      };
     };
   };
 }
@@ -46,6 +81,15 @@ export function parseHotmartEvent(body: unknown): HotmartEventData {
   const { event, data } = payload;
   const { product, buyer, purchase } = data;
 
+  let approvedDate: Date | null = null;
+  if (event === "PURCHASE_APPROVED" && purchase.approved_date) {
+    approvedDate = new Date(purchase.approved_date);
+  }
+
+  const createdAt = purchase.order_date
+    ? new Date(purchase.order_date)
+    : new Date(payload.creation_date);
+
   return {
     transactionId: purchase.transaction,
     event,
@@ -53,10 +97,14 @@ export function parseHotmartEvent(body: unknown): HotmartEventData {
     productName: product.name,
     buyerEmail: buyer.email,
     buyerName: buyer.name,
-    buyerGender: buyer.gender || null,
+    buyerGender: null,
+    buyerState: buyer.address?.state ?? null,
+    buyerCity: buyer.address?.city ?? null,
+    paymentType: purchase.payment?.type ?? "UNKNOWN",
     price: purchase.price.value,
     currency: purchase.price.currency_value,
-    createdAt: new Date(purchase.order_date),
+    approvedDate,
+    createdAt,
     isUpsell: determineIsUpsell(product.name),
   };
 }

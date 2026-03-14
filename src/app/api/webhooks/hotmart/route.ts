@@ -8,7 +8,6 @@ export async function POST(request: NextRequest) {
   try {
     const isValid = await validateWebhook(request);
     if (!isValid) {
-      // Return 200 even if invalid to prevent Hotmart retries
       console.warn("[Webhook/Hotmart] Invalid HOTTOK received");
       return NextResponse.json({ received: true });
     }
@@ -16,23 +15,30 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const eventData = parseHotmartEvent(body);
 
-    // Upsert the sale
+    const status = eventData.event === "PURCHASE_APPROVED" ? "approved"
+      : eventData.event === "PURCHASE_REFUNDED" ? "refunded"
+      : eventData.event === "PURCHASE_CHARGEBACK" ? "chargeback"
+      : "completed";
+
     await prisma.hotmartSale.upsert({
       where: { transactionId: eventData.transactionId },
       update: {
         event: eventData.event,
-        status: eventData.event === "PURCHASE_APPROVED" ? "approved"
-          : eventData.event === "PURCHASE_REFUNDED" ? "refunded"
-          : eventData.event === "PURCHASE_CHARGEBACK" ? "chargeback"
-          : "completed",
+        status,
         productName: eventData.productName,
         productId: eventData.productId,
         buyerName: eventData.buyerName,
         buyerEmail: eventData.buyerEmail,
         buyerGender: eventData.buyerGender,
+        buyerState: eventData.buyerState,
+        buyerCity: eventData.buyerCity,
+        paymentType: eventData.paymentType,
         priceValue: eventData.price,
         priceCurrency: eventData.currency,
         isUpsell: eventData.isUpsell,
+        ...(eventData.event === "PURCHASE_APPROVED" && eventData.approvedDate
+          ? { approvedDate: eventData.approvedDate }
+          : {}),
       },
       create: {
         transactionId: eventData.transactionId,
@@ -42,22 +48,24 @@ export async function POST(request: NextRequest) {
         buyerName: eventData.buyerName,
         buyerEmail: eventData.buyerEmail,
         buyerGender: eventData.buyerGender,
+        buyerState: eventData.buyerState,
+        buyerCity: eventData.buyerCity,
+        paymentType: eventData.paymentType,
         priceValue: eventData.price,
         priceCurrency: eventData.currency,
-        paymentType: "UNKNOWN",
-        status: eventData.event === "PURCHASE_APPROVED" ? "approved" : "completed",
+        status,
         isUpsell: eventData.isUpsell,
-        approvedDate: eventData.event === "PURCHASE_APPROVED" ? eventData.createdAt : null,
+        approvedDate: eventData.approvedDate,
       },
     });
 
-    // Update DailySnapshot
-    await updateDailySnapshotSales(eventData.createdAt);
+    // Update DailySnapshot using approvedDate if available, otherwise createdAt
+    const snapshotDate = eventData.approvedDate ?? eventData.createdAt;
+    await updateDailySnapshotSales(snapshotDate);
 
     return NextResponse.json({ received: true, transactionId: eventData.transactionId });
   } catch (err) {
     console.error("[Webhook/Hotmart] Error:", err);
-    // Always return 200 to prevent Hotmart retries
     return NextResponse.json({ received: true });
   }
 }
